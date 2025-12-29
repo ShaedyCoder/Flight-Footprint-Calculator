@@ -151,7 +151,6 @@ function renderHistory(){
   }
 }
 
-function toCsv(items){}
   function toCsv(items){
   const headers = [
     "Employee",
@@ -453,16 +452,12 @@ function wireSuggest(inputEl, box){
 
 async function logToGoogleSheets(payload){
   try{
-    const res = await fetch(SHEETS_WEBAPP_URL, {
+    await fetch(SHEETS_WEBAPP_URL, {
       method: "POST",
+      mode: "no-cors",               // IMPORTANT
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-
-    // Optional debug (uncomment if needed)
-    // const text = await res.text();
-    // console.log("Sheets response:", text);
-
   } catch (err){
     console.warn("Google Sheets logging failed:", err);
   }
@@ -560,6 +555,30 @@ resultSub.textContent =
   saveHistory(items);
   renderHistory();
 
+// --- Send to Google Sheets (master tracker) ---
+const payload = {
+  employee: employeeName,
+  submittedSgt: nowSgt(),
+  flightDate: formatDdMmYyyy(flightDateISO),
+
+  fromToName: routeName(fromCode, toCode),
+  fromToIata: routeIata(fromCode, toCode),
+
+  tripTypeLabel: `${prettyTrip(tripType)} (x${r.tripMultiplier})`,
+  cabinClassLabel: `${prettyCabin(cabinClass)} (x${Number(r.cabinMultiplier).toFixed(1)})`,
+
+  passengers: passengers,
+
+  greatCircleKm: Number(r.greatCircleKm.toFixed(2)),
+  upliftedDistanceKm: Number(r.upliftedOneWayKm.toFixed(2)),
+
+  haulBaseFactor: `${r.haul} (${Number(r.baseFactor).toFixed(2)})`,
+  totalEmissionsKg: Number(r.totalEmissionsKg.toFixed(3))
+};
+
+logToGoogleSheets(payload);
+
+
   hideSuggest(fromSuggest);
   hideSuggest(toSuggest);
 });
@@ -603,25 +622,3 @@ loadAirports().catch(err => {
   alert(err.message);
 });
 
-// --- Send to Google Sheets (master tracker) ---
-const payload = {
-  employee: employeeName,
-  submittedSgt: nowSgt(),
-  flightDate: formatDdMmYyyy(flightDateISO),
-
-  fromToName: routeName(fromCode, toCode),
-  fromToIata: routeIata(fromCode, toCode),
-
-  tripTypeLabel: `${prettyTrip(tripType)} (x${r.tripMultiplier})`,
-  cabinClassLabel: `${prettyCabin(cabinClass)} (x${Number(r.cabinMultiplier).toFixed(1)})`,
-
-  passengers: passengers,
-
-  greatCircleKm: Number(r.greatCircleKm.toFixed(2)),
-  upliftedDistanceKm: Number(r.upliftedOneWayKm.toFixed(2)),
-
-  haulBaseFactor: `${r.haul} (${Number(r.baseFactor).toFixed(2)})`,
-  totalEmissionsKg: Number(r.totalEmissionsKg.toFixed(3))
-};
-
-logToGoogleSheets(payload);
