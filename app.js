@@ -24,6 +24,8 @@ const dbStatus = document.getElementById("dbStatus");
 const historyTbody = document.querySelector("#historyTable tbody");
 const emptyState = document.getElementById("emptyState");
 
+const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8HHBCTBhhi32ZudeUJOFTm1xRWRELVciEyGuqYIg1h14cwd4A-hgUBdEbpHLukvTu/exec";
+
 flightDateEl.valueAsDate = new Date();
 
 let airportsReady = false;
@@ -375,10 +377,8 @@ function showSuggest(box, items, onPick){
 
   box.style.display = "block";
 
-  // click handling
   box.querySelectorAll(".item").forEach(el => {
     el.addEventListener("mousedown", (e) => {
-      // mousedown so it selects before input blur
       e.preventDefault();
       const label = el.getAttribute("data-label") || "";
       onPick(label);
@@ -451,7 +451,24 @@ function wireSuggest(inputEl, box){
   });
 }
 
-/* ---------- calculation (your exact method) ---------- */
+async function logToGoogleSheets(payload){
+  try{
+    const res = await fetch(SHEETS_WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    // Optional debug (uncomment if needed)
+    // const text = await res.text();
+    // console.log("Sheets response:", text);
+
+  } catch (err){
+    console.warn("Google Sheets logging failed:", err);
+  }
+}
+
+/* ---------- calculation ---------- */
 
 function calculate({ fromCode, toCode, passengers, tripType, cabinClass }){
   const A = airportIndex.get(fromCode);
@@ -585,3 +602,26 @@ loadAirports().catch(err => {
   dbStatus.textContent = "Airport database failed to load.";
   alert(err.message);
 });
+
+// --- Send to Google Sheets (master tracker) ---
+const payload = {
+  employee: employeeName,
+  submittedSgt: nowSgt(),
+  flightDate: formatDdMmYyyy(flightDateISO),
+
+  fromToName: routeName(fromCode, toCode),
+  fromToIata: routeIata(fromCode, toCode),
+
+  tripTypeLabel: `${prettyTrip(tripType)} (x${r.tripMultiplier})`,
+  cabinClassLabel: `${prettyCabin(cabinClass)} (x${Number(r.cabinMultiplier).toFixed(1)})`,
+
+  passengers: passengers,
+
+  greatCircleKm: Number(r.greatCircleKm.toFixed(2)),
+  upliftedDistanceKm: Number(r.upliftedOneWayKm.toFixed(2)),
+
+  haulBaseFactor: `${r.haul} (${Number(r.baseFactor).toFixed(2)})`,
+  totalEmissionsKg: Number(r.totalEmissionsKg.toFixed(3))
+};
+
+logToGoogleSheets(payload);
