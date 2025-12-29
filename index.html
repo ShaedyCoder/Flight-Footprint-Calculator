@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flight Footprint Calculator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="brand">
+        <div class="header-icon" aria-hidden="true">✈</div>
+        <h1 class="title">
+          <span class="light">Calculate Your</span>
+          <span class="accent">Flight</span>
+          <span class="accent2">Footprint</span>
+        </h1>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <!-- Left: Flight Details -->
+    <section class="card">
+      <div class="card-head">
+        <div class="cardTitle">
+          <span class="mini-ico" aria-hidden="true">✓</span>
+          Flight Details
+        </div>
+      </div>
+
+      <form id="flightForm" class="form">
+        <label class="field">
+          <span>Employee Name</span>
+          <input id="employeeName" type="text" placeholder="Enter your name" required />
+        </label>
+
+        <div class="row">
+          <label class="field">
+            <span>From</span>
+            <input id="from" type="text" placeholder="Origin (city/code)" required autocomplete="off" />
+            <div id="fromSuggest" class="suggest" role="listbox" aria-label="From suggestions"></div>
+          </label>
+
+          <label class="field">
+            <span>To</span>
+            <input id="to" type="text" placeholder="Destination (city/code)" required autocomplete="off" />
+            <div id="toSuggest" class="suggest" role="listbox" aria-label="To suggestions"></div>
+          </label>
+        </div>
+
+        <div class="row">
+          <label class="field">
+            <span>Flight Date</span>
+            <input id="flightDate" type="date" required />
+          </label>
+
+          <label class="field">
+            <span>Trip Type</span>
+            <select id="tripType">
+              <option value="one-way">One Way</option>
+              <option value="round-trip" selected>Round Trip</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label class="field">
+            <span>Passengers</span>
+            <input id="passengers" type="number" min="1" value="1" required />
+          </label>
+
+          <label class="field">
+            <span>Cabin Class</span>
+            <select id="cabinClass">
+              <option value="economy" selected>Economy</option>
+              <option value="premium">Premium Economy</option>
+              <option value="business">Business</option>
+              <option value="first">First</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" type="submit">Calculate Emissions</button>
+          <button class="btn" id="resetBtn" type="button">Reset</button>
+        </div>
+
+        <p class="note" id="dbStatus">Loading airport database…</p>
+      </form>
+    </section>
+
+    <!-- Right: History -->
+    <section class="card">
+      <div class="head">
+        <div class="cardTitle">
+          <span class="mini-ico" aria-hidden="true">↻</span>
+          History Log
+        </div>
+
+        <div class="headBtns">
+          <button class="btn" id="clearHistoryBtn" type="button">🗑 Clear</button>
+          <button class="btn" id="exportCsvBtn" type="button">📥 Export CSV</button>
+        </div>
+      </div>
+
+      <div class="tableWrap">
+        <table class="table" id="historyTable">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Submitted (SGT)</th>
+              <th>Route</th>
+              <th>Details</th>
+              <th class="right">Emissions (kg CO₂e)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="emptyWrap">
+        <div class="emptyState" id="emptyState">
+          <div class="emptyIcon" aria-hidden="true">🕒</div>
+          <div class="emptyText">No calculations yet.</div>
+          <div class="emptySub">Your saved trips will appear here.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Result -->
+    <section class="card full">
+      <div class="cardTitle">Result</div>
+      <div class="resultBox">
+        <div class="resultMain" id="resultMain">Ready to calculate</div>
+        <div class="resultSub" id="resultSub">Enter IATA codes to estimate emissions.</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
