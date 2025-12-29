@@ -450,14 +450,26 @@ function wireSuggest(inputEl, box){
   });
 }
 
+/* ---------- Google Sheets logging ---------- */
+console.log("Sending to Sheets:", payload);
 async function logToGoogleSheets(payload){
   try{
-    await fetch(SHEETS_WEBAPP_URL, {
-      method: "POST",
-      mode: "no-cors",               // IMPORTANT
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const body = JSON.stringify(payload);
+
+    // Best effort: sendBeacon (most reliable for logging)
+    const ok = navigator.sendBeacon(
+      SHEETS_WEBAPP_URL,
+      new Blob([body], { type: "text/plain;charset=UTF-8" })
+    );
+
+    // Fallback if sendBeacon is blocked
+    if (!ok){
+      await fetch(SHEETS_WEBAPP_URL, {
+        method: "POST",
+        mode: "no-cors",
+        body
+      });
+    }
   } catch (err){
     console.warn("Google Sheets logging failed:", err);
   }
