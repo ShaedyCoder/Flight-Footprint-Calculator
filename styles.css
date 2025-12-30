@@ -76,10 +76,14 @@ body{
 }
 
 /* =============================
-   Desktop layout (grid-areas = stable)
+   Desktop layout
    Flight Details | History
    Result full width below
    ============================= */
+  .grid > section.card{
+  min-width:0;   /* allows content to shrink inside grid */
+}
+
 .grid{
   display:grid;
   grid-template-columns: 1.65fr 1.35fr;
@@ -196,16 +200,17 @@ input:focus, select:focus{
 
 /* Table */
 .tableWrap{
-  margin-top:14px;
-  border-radius:14px;
-  border:1px solid var(--border);
-  overflow:auto;
+  width:100%;
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
 }
 .table{
   width:100%;
   border-collapse:separate;
   border-spacing:0;
-  min-width:680px;
+  min-width:0;
 }
 .table thead th{
   position:sticky; top:0;
