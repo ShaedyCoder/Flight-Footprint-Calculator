@@ -606,6 +606,7 @@ resultSub.textContent =
 
 // --- Send to Google Sheets (master tracker) ---
 const payload = {
+  secret: "flight-carbon-emission-tracker",
   employee: employeeName,
   submittedSgt: nowSgt(),
   flightDate: formatDdMmYyyy(flightDateISO),
