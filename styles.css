@@ -31,6 +31,7 @@ body{
   background:linear-gradient(90deg,var(--header1),var(--header2));
   color:#fff;
   padding:26px 0;
+  width:100%;
 }
 .topbar-inner{
   display:flex;
@@ -70,10 +71,10 @@ body{
 
 /* Grid / cards */
 .grid{
-  display: grid;
-  grid-template-columns: 1.65fr 1.35fr; /* Flight Details clearly wider */
-  gap: 22px;
-  margin: 22px auto 26px;
+  display:grid;
+  grid-template-columns: 1.65fr 1.35fr;
+  gap:22px;
+  margin:22px auto 26px;
 }
 
 .card{
@@ -84,11 +85,10 @@ body{
   position:relative;
 }
 
-/* move this OUTSIDE (valid CSS) */
+/* Desktop: cap only the first card */
 .card:first-child{
   max-width:520px;
 }
-
 
 .cardTitle{
   font-weight:900;
@@ -232,7 +232,7 @@ input:focus,select:focus{
 .resultMain{font-weight:950;font-size:22px}
 .resultSub{color:var(--muted);font-size:13px;margin-top:6px}
 
-/* Suggest dropdown (OVERLAYS, DOES NOT PUSH CONTENT) */
+/* Suggest dropdown */
 .suggest{
   position:absolute;
   left:0;
@@ -243,22 +243,17 @@ input:focus,select:focus{
   border:1px solid var(--border);
   border-radius:14px;
   box-shadow:0 18px 40px rgba(10, 20, 40, .12);
-  overflow:hidden;
   max-height:260px;
   overflow-y:auto;
-
-  display:none;           /* hidden by default */
-  z-index:50;             /* sits above other fields */
+  display:none;
+  z-index:50;
 }
-
-/* Scrollbar (Chrome) */
 .suggest::-webkit-scrollbar{width:10px}
 .suggest::-webkit-scrollbar-thumb{
   background:#cfd9f0;
   border-radius:10px;
   border:2px solid #fff;
 }
-
 .suggest .item{
   padding:10px 12px;
   cursor:pointer;
@@ -277,125 +272,65 @@ input:focus,select:focus{
   align-items:baseline;
   font-weight:900;
 }
-.suggest .item .code{
-  min-width:44px;
-  font-weight:950;
-}
-.suggest .item .name{
-  font-weight:850;
-  opacity:.95;
-}
-.suggest .item .sub{
-  font-size:11px;
-  opacity:.8;
-  letter-spacing:.2px;
-}
+.suggest .item .code{min-width:44px;font-weight:950}
+.suggest .item .name{font-weight:850;opacity:.95}
+.suggest .item .sub{font-size:11px;opacity:.8;letter-spacing:.2px}
 
-/* Force full-bleed header on all devices */
-html, body {
-  width: 100%;
-  overflow-x: hidden;
-}
+/* Full-bleed safety */
+html, body { width:100%; overflow-x:hidden; }
 
-.topbar {
-  width: 100%;
-}
 /* =============================
-   Mobile layout (SAFE: does not affect PC)
-   Stack: Flight Details -> Result -> History
+   Mobile layout (SAFE)
+   Flight Details -> Result -> History
    ============================= */
 @media (max-width: 820px) {
 
-  /* Stack the two columns */
+  .wrap{ padding:0 14px; }
+
+  /* stack layout */
   .grid{
-    grid-template-columns: 1fr !important;
+    grid-template-columns:1fr !important;
+    width:100%;
+    margin-left:auto;
+    margin-right:auto;
+    justify-items:stretch;
   }
 
-  /* Remove the desktop cap so Flight Details can go full width */
-  .card:first-child{
-    max-width: none !important;
-  }
-
-  /* Make the Result section appear directly after Flight Details */
-  .full{
-    grid-column: auto !important; /* no special spanning needed when 1 column */
-    order: 2;
-  }
-
-  /* Ensure card order: Flight Details (1), Result (2), History (3) */
-  .grid .card:nth-of-type(1){ order: 1; } /* Flight Details */
-  .grid .card:nth-of-type(2){ order: 3; } /* History */
-
-  /* Stack form rows on mobile */
-  .row{
-    grid-template-columns: 1fr !important;
-  }
-
-  /* Buttons become thumb-friendly */
-  .actions{
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .actions .btn{
-    width: 100%;
-  }
-
-  /* History header buttons also become easier to tap */
-  .head{
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .headBtns{
-    width: 100%;
-  }
-  .headBtns .btn{
-    width: 100%;
-  }
-
-  /* Let the table fit the phone width (no forced desktop min width) */
-  .table{
-    min-width: 0 !important;
-  }
-  .tableWrap{
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Slightly tighter paddings so it feels less cramped */
-  .wrap{ padding: 0 14px; }
-  .card{ padding: 14px; }
-  .topbar{ padding: 18px 0; }
-  .title{ font-size: 22px; }
-}
-
-@media (max-width: 820px) {
-  /* Ensure the grid itself doesn’t overflow or shift */
-  .grid{
-    width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-    justify-items: stretch;
-  }
-
-  /* Make cards truly full-width and centred */
+  /* cards full width */
   .card{
-    width: 100%;
-    max-width: 100%;
-    margin-left: auto;
-    margin-right: auto;
+    width:100%;
+    max-width:100%;
+    margin-left:auto;
+    margin-right:auto;
+    padding:14px;
   }
 
-  /* Remove any chance the wrapper causes “left bias” */
-  .wrap{
-    width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-  }
+  /* remove desktop cap */
+  .card:first-child{ max-width:none !important; }
 
-  /* Prevent accidental horizontal nudges */
-  body{
-    overflow-x: hidden;
-  }
+  /* order using class, not fragile nth rules */
+  .grid > section.card{ order:1; }         /* Flight Details */
+  .grid > section.card.full{ order:2; }    /* Result */
+  .grid > section.card.history{ order:3; } /* History (add class in HTML if you want) */
+
+  /* If you don't add a class, History is the 2nd card */
+  .grid > section.card:not(.full):nth-of-type(2){ order:3; }
+
+  /* stack form fields */
+  .row{ grid-template-columns:1fr !important; }
+
+  /* buttons */
+  .actions{ flex-direction:column; align-items:stretch; }
+  .actions .btn{ width:100%; }
+
+  .head{ flex-direction:column; align-items:stretch; }
+  .headBtns{ width:100%; }
+  .headBtns .btn{ width:100%; }
+
+  /* table should not force desktop width */
+  .table{ min-width:0 !important; width:100%; }
+  .tableWrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+  .topbar{ padding:18px 0; }
+  .title{ font-size:22px; }
 }
-
-body { background: #ffdddd !important; }
