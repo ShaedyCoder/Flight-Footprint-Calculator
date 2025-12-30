@@ -1,18 +1,15 @@
 // =============================
 // Flight Footprint Calculator
 // =============================
-console.log("APP.JS VERSION:", "2025-12-30 23:45");
+console.log("APP.JS VERSION:", "2025-12-30 23:59 (robust headers)");
 
 const AIRPORTS_CSV = "airports_iata_latlon.csv";
 const STORAGE_KEY = "flight_history_v1";
 
-// ---- Google Sheets Web App (Apps Script /exec) ----
 const SHEETS_WEBAPP_URL =
   "https://script.google.com/macros/s/AKfycby8HHBCTBhhi32ZudeUJOFTm1xRWRELVciEyGuqYIg1h14cwd4A-hgUBdEbpHLukvTu/exec";
 
-// =============================
-// DOM
-// =============================
+// ---- DOM ----
 const form = document.getElementById("flightForm");
 const employeeNameEl = document.getElementById("employeeName");
 const fromEl = document.getElementById("from");
@@ -21,36 +18,26 @@ const flightDateEl = document.getElementById("flightDate");
 const tripTypeEl = document.getElementById("tripType");
 const passengersEl = document.getElementById("passengers");
 const cabinClassEl = document.getElementById("cabinClass");
-
 const fromSuggest = document.getElementById("fromSuggest");
 const toSuggest = document.getElementById("toSuggest");
-
 const resetBtn = document.getElementById("resetBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 const exportCsvBtn = document.getElementById("exportCsvBtn");
-
 const resultMain = document.getElementById("resultMain");
 const resultSub = document.getElementById("resultSub");
 const dbStatus = document.getElementById("dbStatus");
-
 const historyTbody = document.querySelector("#historyTable tbody");
 const emptyState = document.getElementById("emptyState");
 
-// =============================
-// State
-// =============================
+// ---- state ----
 let airportsReady = false;
 /** Map<IATA, {lat:number, lon:number, name?:string, city?:string, country?:string}> */
 let airportIndex = new Map();
 /** Fast search array: [{ iata, name, city, country, hay }] */
 let airportSearch = [];
 
-// =============================
-// Init defaults
-// =============================
+// ---- init ----
 flightDateEl.valueAsDate = new Date();
-
-// Disable From/To until loaded
 fromEl.disabled = true;
 toEl.disabled = true;
 fromEl.placeholder = "Loading airports…";
@@ -59,14 +46,12 @@ toEl.placeholder = "Loading airports…";
 // =============================
 // Helpers
 // =============================
+const pad2 = (n) => String(n).padStart(2, "0");
+
 function extractIata(input) {
   const s = String(input ?? "").toUpperCase();
-  const m = s.match(/[A-Z0-9]{3}/);
+  const m = s.match(/\b[A-Z0-9]{3}\b/);
   return m ? m[0] : "";
-}
-
-function pad2(n) {
-  return String(n).padStart(2, "0");
 }
 
 function nowSgt() {
@@ -81,9 +66,7 @@ function nowSgt() {
   }).formatToParts(new Date());
 
   const get = (t) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("day")}-${get("month")}-${get("year")} ${get("hour")}:${get(
-    "minute"
-  )} SGT`;
+  return `${get("day")}-${get("month")}-${get("year")} ${get("hour")}:${get("minute")} SGT`;
 }
 
 function formatDdMmYyyy(isoDateStr) {
@@ -93,9 +76,7 @@ function formatDdMmYyyy(isoDateStr) {
   return `${pad2(d)}-${pad2(m)}-${y}`;
 }
 
-function toRad(deg) {
-  return (deg * Math.PI) / 180;
-}
+const toRad = (deg) => (deg * Math.PI) / 180;
 
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -103,43 +84,32 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   const dLon = toRad(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) ** 2;
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
-function cabinMult(c) {
-  if (c === "premium") return 1.2;
-  if (c === "business") return 1.5;
-  if (c === "first") return 2.0;
-  return 1.0;
-}
+const cabinMult = (c) =>
+  c === "premium" ? 1.2 : c === "business" ? 1.5 : c === "first" ? 2.0 : 1.0;
 
-function tripMult(t) {
-  return t === "round-trip" ? 2 : 1;
-}
+const tripMult = (t) => (t === "round-trip" ? 2 : 1);
 
-function prettyCabin(v) {
-  if (v === "premium") return "Premium Economy";
-  if (v === "business") return "Business Class";
-  if (v === "first") return "First Class";
-  return "Economy";
-}
+const prettyCabin = (v) =>
+  v === "premium"
+    ? "Premium Economy"
+    : v === "business"
+    ? "Business Class"
+    : v === "first"
+    ? "First Class"
+    : "Economy";
 
-function prettyTrip(v) {
-  return v === "round-trip" ? "Round Trip" : "One Way";
-}
+const prettyTrip = (v) => (v === "round-trip" ? "Round Trip" : "One Way");
 
 function nowForFilename() {
   const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = pad2(d.getMonth() + 1);
-  const dd = pad2(d.getDate());
-  const hh = pad2(d.getHours());
-  const min = pad2(d.getMinutes());
-  return `${yyyy}-${mm}-${dd}_${hh}${min}`;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}_${pad2(
+    d.getHours()
+  )}${pad2(d.getMinutes())}`;
 }
 
 function escapeHtml(s) {
@@ -160,13 +130,8 @@ function placeLabelFromAirport(code) {
   return city || country || name || code;
 }
 
-function routeName(codeA, codeB) {
-  return `${placeLabelFromAirport(codeA)} – ${placeLabelFromAirport(codeB)}`;
-}
-
-function routeIata(codeA, codeB) {
-  return `${codeA} – ${codeB}`;
-}
+const routeName = (a, b) => `${placeLabelFromAirport(a)} – ${placeLabelFromAirport(b)}`;
+const routeIata = (a, b) => `${a} – ${b}`;
 
 // =============================
 // localStorage
@@ -194,9 +159,7 @@ function renderHistory() {
       <td>${escapeHtml(it.employeeName)}</td>
       <td>${escapeHtml(it.submittedSgt)}</td>
       <td>${escapeHtml(it.from)} → ${escapeHtml(it.to)}</td>
-      <td>${escapeHtml(prettyCabin(it.cabinClass))} · ${escapeHtml(
-      prettyTrip(it.tripType)
-    )} · ${escapeHtml(it.passengers)} pax</td>
+      <td>${escapeHtml(prettyCabin(it.cabinClass))} · ${escapeHtml(prettyTrip(it.tripType))} · ${escapeHtml(it.passengers)} pax</td>
       <td class="right">${Number(it.emissionsKg).toFixed(1)}</td>
     `;
     historyTbody.appendChild(tr);
@@ -225,32 +188,18 @@ function toCsv(items) {
   const lines = [headers.join(",")];
 
   for (const i of items) {
-    const fromCode = i.from;
-    const toCode = i.to;
-    const flightDate = formatDdMmYyyy(i.flightDateISO);
-
-    const fromToName = routeName(fromCode, toCode);
-    const fromToIata = routeIata(fromCode, toCode);
-
-    const tripLabel = `${prettyTrip(i.tripType)} (×${i.tripMultiplier})`;
-    const cabinLabel = `${prettyCabin(i.cabinClass)} (×${Number(
-      i.cabinMultiplier
-    ).toFixed(1)})`;
-
-    const haulFactor = `${i.haul} (${Number(i.baseFactor).toFixed(2)})`;
-
     const row = [
       i.employeeName,
       i.submittedSgt,
-      flightDate,
-      fromToName,
-      fromToIata,
-      tripLabel,
-      cabinLabel,
+      formatDdMmYyyy(i.flightDateISO),
+      routeName(i.from, i.to),
+      routeIata(i.from, i.to),
+      `${prettyTrip(i.tripType)} (×${i.tripMultiplier})`,
+      `${prettyCabin(i.cabinClass)} (×${Number(i.cabinMultiplier).toFixed(1)})`,
       i.passengers,
       Number(i.greatCircleKm).toFixed(2),
       Number(i.upliftedOneWayKm).toFixed(2),
-      haulFactor,
+      `${i.haul} (${Number(i.baseFactor).toFixed(2)})`,
       Number(i.emissionsKg).toFixed(3),
     ]
       .map((v) => {
@@ -268,28 +217,26 @@ function toCsv(items) {
 }
 
 function downloadCsv(filename, text) {
-  const BOM = "\uFEFF"; // Excel UTF-8 BOM
+  const BOM = "\uFEFF";
   const blob = new Blob([BOM + text], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
-
   URL.revokeObjectURL(url);
 }
 
 // =============================
-// CSV Parser + Load Airports
+// CSV Parser
 // =============================
 function parseCsv(text) {
   const rows = [];
-  let row = [];
-  let field = "";
-  let inQuotes = false;
+  let row = [],
+    field = "",
+    inQuotes = false;
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
@@ -300,12 +247,8 @@ function parseCsv(text) {
         if (next === '"') {
           field += '"';
           i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += ch;
-      }
+        } else inQuotes = false;
+      } else field += ch;
     } else {
       if (ch === '"') inQuotes = true;
       else if (ch === ",") {
@@ -316,9 +259,7 @@ function parseCsv(text) {
         rows.push(row);
         row = [];
         field = "";
-      } else if (ch !== "\r") {
-        field += ch;
-      }
+      } else if (ch !== "\r") field += ch;
     }
   }
 
@@ -326,36 +267,49 @@ function parseCsv(text) {
     row.push(field);
     rows.push(row);
   }
-
   return rows;
+}
+
+// =============================
+// Load Airports (ROBUST HEADERS + BOM STRIP)
+// =============================
+function normHeader(h) {
+  return String(h ?? "")
+    .replace(/^\uFEFF/, "") // strip BOM if present
+    .trim()
+    .toLowerCase();
+}
+
+function findHeaderIndex(header, candidates) {
+  const set = new Set(header);
+  for (const c of candidates) {
+    if (set.has(c)) return header.indexOf(c);
+  }
+  return -1;
 }
 
 async function loadAirports() {
   dbStatus.textContent = "Loading airport database…";
 
   const res = await fetch(`${AIRPORTS_CSV}?v=${Date.now()}`);
-  if (!res.ok) {
-    throw new Error(
-      `Cannot load ${AIRPORTS_CSV}. Ensure it's beside index.html on GitHub Pages.`
-    );
-  }
+  if (!res.ok) throw new Error(`Cannot load ${AIRPORTS_CSV}.`);
 
-  const text = await res.text();
-  const rows = parseCsv(text);
+  // strip BOM from the entire file too (extra safe)
+  const raw = (await res.text()).replace(/^\uFEFF/, "");
+  const rows = parseCsv(raw);
 
-  const header = rows[0].map((h) => h.trim().toLowerCase());
-  const idx = (name) => header.indexOf(name);
+  const header = rows[0].map(normHeader);
 
-  const iIata = idx("iata");
-  const iLat = idx("lat");
-  const iLon = idx("lon");
-  const iName = idx("name");
-  const iCity = idx("city");
-  const iCountry = idx("country");
+  const iIata = findHeaderIndex(header, ["iata", "iata_code", "iata3", "iata_3"]);
+  const iLat = findHeaderIndex(header, ["lat", "latitude", "y"]);
+  const iLon = findHeaderIndex(header, ["lon", "lng", "longitude", "x"]);
+  const iName = findHeaderIndex(header, ["name", "airport", "airport_name"]);
+  const iCity = findHeaderIndex(header, ["city", "municipality", "town"]);
+  const iCountry = findHeaderIndex(header, ["country", "country_name"]);
 
   if (iIata === -1 || iLat === -1 || iLon === -1) {
     throw new Error(
-      "CSV must include columns: iata, lat, lon (optional: name, city, country)."
+      `CSV header not recognised. Need iata/lat/lon. Found: ${header.join(" | ")}`
     );
   }
 
@@ -364,7 +318,6 @@ async function loadAirports() {
 
   for (let r = 1; r < rows.length; r++) {
     const cols = rows[r];
-
     const code = String(cols[iIata] ?? "").trim().toUpperCase();
     const lat = Number(cols[iLat]);
     const lon = Number(cols[iLon]);
@@ -377,7 +330,6 @@ async function loadAirports() {
     const country = iCountry >= 0 ? String(cols[iCountry] ?? "").trim() : "";
 
     map.set(code, { lat, lon, name, city, country });
-
     search.push({
       iata: code,
       name,
@@ -387,8 +339,11 @@ async function loadAirports() {
     });
   }
 
-  search.sort((a, b) => a.iata.localeCompare(b.iata));
+  if (map.size === 0) {
+    throw new Error("Airport CSV loaded but 0 airports parsed. Check file contents.");
+  }
 
+  search.sort((a, b) => a.iata.localeCompare(b.iata));
   airportIndex = map;
   airportSearch = search;
   airportsReady = true;
@@ -397,12 +352,11 @@ async function loadAirports() {
   toEl.disabled = false;
   fromEl.placeholder = "Origin (city/code)";
   toEl.placeholder = "Destination (city/code)";
-
   dbStatus.textContent = `Airport database loaded: ${airportIndex.size.toLocaleString()} airports.`;
 }
 
 // =============================
-// Suggestions (FAST)
+// Suggestions
 // =============================
 function buildSuggestions(query) {
   const q = query.trim().toUpperCase();
@@ -433,23 +387,14 @@ function hideSuggest(box) {
 }
 
 function showSuggest(box, items, onPick) {
-  if (!items.length) {
-    hideSuggest(box);
-    return;
-  }
+  if (!items.length) return hideSuggest(box);
 
   box.innerHTML = items
-    .map((it, idx) => {
-      const sub = `${it.city || ""}${it.city && it.country ? ", " : ""}${
-        it.country || ""
-      }`.trim();
-
+    .map((it) => {
+      const sub = `${it.city || ""}${it.city && it.country ? ", " : ""}${it.country || ""}`.trim();
       const label = `${it.iata} - ${it.city || it.name || it.iata}`;
-
       return `
-        <div class="item" role="option" data-label="${escapeHtml(
-          label
-        )}" data-idx="${idx}">
+        <div class="item" role="option" data-label="${escapeHtml(label)}">
           <div class="top">
             <span class="code">${escapeHtml(it.iata)}</span>
             <span class="name">${escapeHtml(it.name || "Unknown Airport")}</span>
@@ -478,19 +423,13 @@ function wireSuggest(inputEl, box) {
   inputEl.addEventListener("input", () => {
     if (!airportsReady) return;
     activeIndex = -1;
-    const items = buildSuggestions(inputEl.value);
-    showSuggest(box, items, (label) => (inputEl.value = label));
+    showSuggest(box, buildSuggestions(inputEl.value), (label) => (inputEl.value = label));
   });
 
   inputEl.addEventListener("focus", () => {
     if (!airportsReady) return;
     activeIndex = -1;
-    const items = buildSuggestions(inputEl.value);
-    showSuggest(box, items, (label) => (inputEl.value = label));
-  });
-
-  inputEl.addEventListener("blur", () => {
-    setTimeout(() => hideSuggest(box), 120);
+    showSuggest(box, buildSuggestions(inputEl.value), (label) => (inputEl.value = label));
   });
 
   inputEl.addEventListener("keydown", (e) => {
@@ -527,18 +466,22 @@ function wireSuggest(inputEl, box) {
   });
 }
 
+// close suggestions when clicking outside
+document.addEventListener("mousedown", (e) => {
+  if (!fromEl.contains(e.target) && !fromSuggest.contains(e.target)) hideSuggest(fromSuggest);
+  if (!toEl.contains(e.target) && !toSuggest.contains(e.target)) hideSuggest(toSuggest);
+});
+
 // =============================
-// Google Sheets logging (client)
+// Google Sheets logging
 // =============================
 async function logToGoogleSheets(payload) {
   try {
     const body = JSON.stringify(payload);
-
     const ok = navigator.sendBeacon(
       SHEETS_WEBAPP_URL,
       new Blob([body], { type: "text/plain;charset=UTF-8" })
     );
-
     if (!ok) {
       await fetch(SHEETS_WEBAPP_URL, {
         method: "POST",
@@ -559,33 +502,20 @@ async function logToGoogleSheets(payload) {
 function calculate({ fromCode, toCode, passengers, tripType, cabinClass }) {
   const A = airportIndex.get(fromCode);
   const B = airportIndex.get(toCode);
-
   if (!A || !B) return { error: "Airport code not found in database." };
 
   const greatCircleKm = haversineKm(A.lat, A.lon, B.lat, B.lon);
   const upliftedOneWayKm = greatCircleKm * 1.08;
-
   const haul = upliftedOneWayKm < 3700 ? "Short-haul" : "Long-haul";
   const baseFactor = haul === "Short-haul" ? 0.15 : 0.11;
 
   const cabinMultiplier = cabinMult(cabinClass);
   const adjustedFactor = baseFactor * cabinMultiplier;
-
   const tripMultiplier = tripMult(tripType);
 
-  const totalEmissionsKg =
-    upliftedOneWayKm * adjustedFactor * passengers * tripMultiplier;
+  const totalEmissionsKg = upliftedOneWayKm * adjustedFactor * passengers * tripMultiplier;
 
-  return {
-    greatCircleKm,
-    upliftedOneWayKm,
-    haul,
-    baseFactor,
-    cabinMultiplier,
-    adjustedFactor,
-    tripMultiplier,
-    totalEmissionsKg,
-  };
+  return { greatCircleKm, upliftedOneWayKm, haul, baseFactor, cabinMultiplier, adjustedFactor, tripMultiplier, totalEmissionsKg };
 }
 
 // =============================
@@ -593,55 +523,27 @@ function calculate({ fromCode, toCode, passengers, tripType, cabinClass }) {
 // =============================
 form.addEventListener("submit", (e) => {
   e.preventDefault();
-
-  if (!airportsReady) {
-    alert("Airport database still loading. Try again in a moment.");
-    return;
-  }
+  if (!airportsReady) return alert("Airport database still loading.");
 
   const employeeName = employeeNameEl.value.trim();
   const fromCode = extractIata(fromEl.value);
   const toCode = extractIata(toEl.value);
   const flightDateISO = flightDateEl.value;
-
   const passengers = Number(passengersEl.value);
   const tripType = tripTypeEl.value;
   const cabinClass = cabinClassEl.value;
 
-  if (
-    !employeeName ||
-    !fromCode ||
-    !toCode ||
-    !flightDateISO ||
-    !Number.isFinite(passengers) ||
-    passengers < 1
-  ) {
-    alert("Fill in all fields. Use IATA codes like SIN, NRT, KUL.");
-    return;
+  if (!employeeName || !fromCode || !toCode || !flightDateISO || !Number.isFinite(passengers) || passengers < 1) {
+    return alert("Fill in all fields. Use IATA codes like SIN, NRT, KUL.");
   }
-
-  if (fromCode === toCode) {
-    alert("Origin and destination cannot be the same.");
-    return;
-  }
+  if (fromCode === toCode) return alert("Origin and destination cannot be the same.");
 
   const r = calculate({ fromCode, toCode, passengers, tripType, cabinClass });
-  if (r.error) {
-    alert(r.error);
-    return;
-  }
+  if (r.error) return alert(r.error);
 
-  // Result display (story style)
   resultMain.textContent = `${r.totalEmissionsKg.toFixed(1)} kg CO₂e`;
-  resultSub.textContent = `Uplifted distance ${r.upliftedOneWayKm.toFixed(
-    0
-  )} km · ${r.haul} factor ${r.baseFactor.toFixed(
-    2
-  )} × Cabin (×${r.cabinMultiplier.toFixed(1)}) × ${passengers} passenger${
-    passengers > 1 ? "s" : ""
-  } × ${prettyTrip(tripType)} (×${r.tripMultiplier})`;
+  resultSub.textContent = `Uplifted distance ${r.upliftedOneWayKm.toFixed(0)} km · ${r.haul} factor ${r.baseFactor.toFixed(2)} × Cabin (×${r.cabinMultiplier.toFixed(1)}) × ${passengers} passenger${passengers > 1 ? "s" : ""} × ${prettyTrip(tripType)} (×${r.tripMultiplier})`;
 
-  // Store local history
   const submittedSgt = nowSgt();
   const items = loadHistory();
 
@@ -667,7 +569,6 @@ form.addEventListener("submit", (e) => {
   saveHistory(items);
   renderHistory();
 
-  // Log to Google Sheets (payload fields EXACTLY as your Apps Script expects)
   const payload = {
     secret: "flight-carbon-emission-tracker",
     employee: employeeName,
@@ -676,9 +577,7 @@ form.addEventListener("submit", (e) => {
     fromToName: routeName(fromCode, toCode),
     fromToIata: routeIata(fromCode, toCode),
     tripTypeLabel: `${prettyTrip(tripType)} (x${r.tripMultiplier})`,
-    cabinClassLabel: `${prettyCabin(cabinClass)} (x${Number(
-      r.cabinMultiplier
-    ).toFixed(1)})`,
+    cabinClassLabel: `${prettyCabin(cabinClass)} (x${Number(r.cabinMultiplier).toFixed(1)})`,
     passengers,
     greatCircleKm: Number(r.greatCircleKm.toFixed(2)),
     upliftedDistanceKm: Number(r.upliftedOneWayKm.toFixed(2)),
@@ -687,7 +586,6 @@ form.addEventListener("submit", (e) => {
   };
 
   logToGoogleSheets(payload);
-
   hideSuggest(fromSuggest);
   hideSuggest(toSuggest);
 });
@@ -709,12 +607,8 @@ clearHistoryBtn.addEventListener("click", () => {
 
 exportCsvBtn.addEventListener("click", () => {
   const items = loadHistory();
-  if (!items.length) {
-    alert("No entries to export yet.");
-    return;
-  }
-  const filename = `flight-footprint-${nowForFilename()}.csv`;
-  downloadCsv(filename, toCsv(items));
+  if (!items.length) return alert("No entries to export yet.");
+  downloadCsv(`flight-footprint-${nowForFilename()}.csv`, toCsv(items));
 });
 
 // =============================

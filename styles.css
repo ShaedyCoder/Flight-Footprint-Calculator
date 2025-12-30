@@ -76,19 +76,19 @@ body{
   margin: 22px auto 26px;
 }
 
-
-
-
 .card{
   background:var(--card);
   border-radius:var(--radius);
   box-shadow:var(--shadow);
   padding:18px;
   position:relative;
-  .card:first-child {
-  max-width: 520px;
 }
+
+/* move this OUTSIDE (valid CSS) */
+.card:first-child{
+  max-width:520px;
 }
+
 
 .cardTitle{
   font-weight:900;
