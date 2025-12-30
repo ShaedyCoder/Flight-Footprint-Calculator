@@ -300,3 +300,70 @@ html, body {
 .topbar {
   width: 100%;
 }
+/* =============================
+   Mobile layout (SAFE: does not affect PC)
+   Stack: Flight Details -> Result -> History
+   ============================= */
+@media (max-width: 820px) {
+
+  /* Stack the two columns */
+  .grid{
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Remove the desktop cap so Flight Details can go full width */
+  .card:first-child{
+    max-width: none !important;
+  }
+
+  /* Make the Result section appear directly after Flight Details */
+  .full{
+    grid-column: auto !important; /* no special spanning needed when 1 column */
+    order: 2;
+  }
+
+  /* Ensure card order: Flight Details (1), Result (2), History (3) */
+  .grid .card:nth-of-type(1){ order: 1; } /* Flight Details */
+  .grid .card:nth-of-type(2){ order: 3; } /* History */
+
+  /* Stack form rows on mobile */
+  .row{
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Buttons become thumb-friendly */
+  .actions{
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .actions .btn{
+    width: 100%;
+  }
+
+  /* History header buttons also become easier to tap */
+  .head{
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .headBtns{
+    width: 100%;
+  }
+  .headBtns .btn{
+    width: 100%;
+  }
+
+  /* Let the table fit the phone width (no forced desktop min width) */
+  .table{
+    min-width: 0 !important;
+  }
+  .tableWrap{
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Slightly tighter paddings so it feels less cramped */
+  .wrap{ padding: 0 14px; }
+  .card{ padding: 14px; }
+  .topbar{ padding: 18px 0; }
+  .title{ font-size: 22px; }
+}
