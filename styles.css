@@ -285,52 +285,30 @@ html, body { width:100%; overflow-x:hidden; }
    ============================= */
 @media (max-width: 820px) {
 
-  .wrap{ padding:0 14px; }
+  /* Use wrap padding as the ONLY gutter */
+  .wrap{
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
 
-  /* stack layout */
+  /* Stop the grid from auto-centering weirdly */
   .grid{
-    grid-template-columns:1fr !important;
-    width:100%;
-    margin-left:auto;
-    margin-right:auto;
-    justify-items:stretch;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-top: 16px !important;
+    margin-bottom: 18px !important;
+    width: 100% !important;
   }
 
-  /* cards full width */
+  /* Cards should not auto-center (that causes the “off” look) */
   .card{
-    width:100%;
-    max-width:100%;
-    margin-left:auto;
-    margin-right:auto;
-    padding:14px;
+    margin: 0 !important;
+    width: 100% !important;
   }
 
-  /* remove desktop cap */
-  .card:first-child{ max-width:none !important; }
-
-  /* order using class, not fragile nth rules */
-  .grid > section.card{ order:1; }         /* Flight Details */
-  .grid > section.card.full{ order:2; }    /* Result */
-  .grid > section.card.history{ order:3; } /* History (add class in HTML if you want) */
-
-  /* If you don't add a class, History is the 2nd card */
-  .grid > section.card:not(.full):nth-of-type(2){ order:3; }
-
-  /* stack form fields */
-  .row{ grid-template-columns:1fr !important; }
-
-  /* buttons */
-  .actions{ flex-direction:column; align-items:stretch; }
-  .actions .btn{ width:100%; }
-
-  .head{ flex-direction:column; align-items:stretch; }
-  .headBtns{ width:100%; }
-  .headBtns .btn{ width:100%; }
-
-  /* table should not force desktop width */
-  .table{ min-width:0 !important; width:100%; }
-  .tableWrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-
-  .topbar{ padding:18px 0; }
-  .title{ font-size:22px; }
+  /* Keep header content aligned to the same gutter */
+  .topbar{
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
 }
