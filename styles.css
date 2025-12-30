@@ -46,7 +46,7 @@ body{
 .topbar-inner{
   display:flex;
   align-items:center;
-  justify-content:space-between;
+  justify-content:flex-start; /* keeps title left-aligned */
   gap:16px;
 }
 .brand{ display:flex; align-items:center; gap:14px; }
@@ -75,14 +75,27 @@ body{
   font-size:18px;
 }
 
-/* Grid / cards */
+/* =============================
+   Desktop layout (grid-areas = stable)
+   Flight Details | History
+   Result full width below
+   ============================= */
 .grid{
   display:grid;
-  grid-template-columns:1.65fr 1.35fr;
+  grid-template-columns: 1.65fr 1.35fr;
+  grid-template-areas:
+    "details history"
+    "result  result";
   gap:22px;
-  margin:22px 0 26px; /* IMPORTANT: no auto-centre weirdness */
+  margin:22px auto 26px;
   width:100%;
+  align-items:start;
 }
+
+/* Map sections to areas by their current DOM order */
+.grid > section.card:nth-of-type(1){ grid-area:details; }
+.grid > section.card:nth-of-type(2){ grid-area:history; }
+.grid > section.card.full{ grid-area:result; }
 
 .card{
   background:var(--card);
@@ -92,8 +105,8 @@ body{
   position:relative;
 }
 
-/* Desktop: cap only the first card */
-.card:first-child{
+/* Desktop: cap only Flight Details card */
+.grid > section.card:nth-of-type(1){
   max-width:520px;
 }
 
@@ -234,7 +247,7 @@ input:focus, select:focus{
 .emptySub{ font-size:12px; margin-top:4px; }
 
 /* Result */
-.full{ grid-column:1/-1; }
+.full{ grid-column:auto; } /* grid-area handles it */
 .resultBox{
   margin-top:12px;
   border-radius:16px;
@@ -246,7 +259,7 @@ input:focus, select:focus{
 .resultMain{ font-weight:950; font-size:22px; }
 .resultSub{ color:var(--muted); font-size:13px; margin-top:6px; }
 
-/* Suggest dropdown (overlays, does not push content) */
+/* Suggest dropdown (overlays) */
 .suggest{
   position:absolute;
   left:0;
@@ -291,35 +304,36 @@ input:focus, select:focus{
 .suggest .item .sub{ font-size:11px; opacity:.8; letter-spacing:.2px; }
 
 /* =============================
-   Mobile (centred gutters + stack)
-   NOTE: This ONLY changes layout, not desktop styling.
+   Mobile (stack + centred)
+   IMPORTANT: breakpoint raised so phones that render ~980px still stack
    ============================= */
-@media (max-width: 820px){
+@media (max-width: 1100px){
 
-  /* consistent side gutters */
   .wrap{ padding:0 16px; }
 
-  /* stack into one column */
   .grid{
     grid-template-columns:1fr;
+    grid-template-areas:
+      "details"
+      "result"
+      "history";
     gap:16px;
-    margin:16px 0 18px;
+    margin:16px auto 18px;
   }
 
-  /* remove first-card cap on mobile */
-  .card:first-child{ max-width:none; }
+  /* remove cap on Flight Details */
+  .grid > section.card:nth-of-type(1){
+    max-width:none;
+  }
 
-  /* make cards fill the wrap width */
   .card{
     width:100%;
     margin:0;
     padding:14px;
   }
 
-  /* stack form rows */
   .row{ grid-template-columns:1fr; }
 
-  /* mobile-friendly buttons */
   .actions{
     flex-direction:column;
     align-items:stretch;
@@ -327,7 +341,6 @@ input:focus, select:focus{
   }
   .actions .btn{ width:100%; }
 
-  /* history header buttons */
   .head{
     flex-direction:column;
     align-items:stretch;
@@ -336,10 +349,8 @@ input:focus, select:focus{
   .headBtns{ width:100%; }
   .headBtns .btn{ width:100%; }
 
-  /* keep table usable */
   .tableWrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
 
-  /* header size */
   .topbar{ padding:18px 0; }
   .title{ font-size:22px; }
 }
