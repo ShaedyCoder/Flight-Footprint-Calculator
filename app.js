@@ -5,6 +5,11 @@ const form = document.getElementById("flightForm");
 const employeeNameEl = document.getElementById("employeeName");
 const fromEl = document.getElementById("from");
 const toEl = document.getElementById("to");
+// Disable until airport DB is ready
+fromEl.disabled = true;
+toEl.disabled = true;
+fromEl.placeholder = "Loading airports…";
+toEl.placeholder = "Loading airports…";
 const flightDateEl = document.getElementById("flightDate");
 const tripTypeEl = document.getElementById("tripType");
 const passengersEl = document.getElementById("passengers");
@@ -33,6 +38,7 @@ let airportsReady = false;
  * airportIndex: Map<IATA, {lat:number, lon:number, name?:string, city?:string, country?:string}>
  */
 let airportIndex = new Map();
+let airportSearch = []; // [{ iata, name, city, country, hay }]
 
 /* ---------- helpers ---------- */
 
@@ -282,27 +288,58 @@ async function loadAirports(){
   }
 
   const map = new Map();
-  for (let r=1;r<rows.length;r++){
+  airportSearch = []; // reset search index
+
+  for (let r = 1; r < rows.length; r++){
     const cols = rows[r];
     const code = String(cols[iIata] ?? "").trim().toUpperCase();
     const lat = Number(cols[iLat]);
     const lon = Number(cols[iLon]);
+
     if (!code || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
 
     if (!map.has(code)){
       map.set(code, {
-        lat, lon,
+        lat,
+        lon,
         name: iName >= 0 ? String(cols[iName] ?? "").trim() : "",
         city: iCity >= 0 ? String(cols[iCity] ?? "").trim() : "",
         country: iCountry >= 0 ? String(cols[iCountry] ?? "").trim() : ""
       });
+
+      const info = map.get(code);
+      const name = info.name || "";
+      const city = info.city || "";
+      const country = info.country || "";
+
+      airportSearch.push({
+        iata: code,
+        name,
+        city,
+        country,
+        hay: `${code} ${name} ${city} ${country}`.toUpperCase()
+      });
     }
   }
+
+
 
   airportIndex = map;
   airportsReady = true;
   dbStatus.textContent = `Airport database loaded: ${airportIndex.size.toLocaleString()} airports.`;
 }
+
+ airportSearch.sort((a, b) => a.iata.localeCompare(b.iata));
+
+  airportIndex = map;
+  airportsReady = true;
+
+  fromEl.disabled = false;
+  toEl.disabled = false;
+  fromEl.placeholder = "Origin (city/code)";
+  toEl.placeholder = "Destination (city/code)";
+
+  dbStatus.textContent = `Airport database loaded: ${airportIndex.size.toLocaleString()} airports.`;
 
 function nowForFilename(){
   const d = new Date();
