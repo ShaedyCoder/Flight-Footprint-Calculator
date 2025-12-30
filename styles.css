@@ -89,7 +89,11 @@ body{
   gap:22px;
   margin:22px auto 26px;
   width:100%;
-  align-items:start;
+  align-items:stretch;
+}
+
+.grid > section.card{
+  height:100%;
 }
 
 /* Map sections to areas by their current DOM order */
@@ -103,11 +107,6 @@ body{
   box-shadow:var(--shadow);
   padding:18px;
   position:relative;
-}
-
-/* Desktop: cap only Flight Details card */
-.grid > section.card:nth-of-type(1){
-  max-width:520px;
 }
 
 /* Title row */
