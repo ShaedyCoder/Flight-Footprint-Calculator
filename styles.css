@@ -290,3 +290,20 @@ input:focus,select:focus{
   opacity:.8;
   letter-spacing:.2px;
 }
+
+/* Force full-bleed header on all devices */
+html, body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.topbar {
+  width: 100%;
+}
+
+/* Full-bleed even if some parent/container constrains width */
+.topbar {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
