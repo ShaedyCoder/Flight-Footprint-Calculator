@@ -300,10 +300,3 @@ html, body {
 .topbar {
   width: 100%;
 }
-
-/* Full-bleed even if some parent/container constrains width */
-.topbar {
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-}
