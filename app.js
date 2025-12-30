@@ -270,11 +270,27 @@ function wireSuggest(input, box) {
 // =============================
 function logToSheets(payload) {
   try {
-    navigator.sendBeacon(
+    const body = JSON.stringify(payload);
+
+    // best-effort (doesn't block page)
+    const ok = navigator.sendBeacon(
       SHEETS_WEBAPP_URL,
-      new Blob([JSON.stringify(payload)], { type: "text/plain" })
+      new Blob([body], { type: "text/plain;charset=UTF-8" })
     );
-  } catch {}
+
+    // fallback
+    if (!ok) {
+      fetch(SHEETS_WEBAPP_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        body,
+        keepalive: true,
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.warn("Sheets logging failed:", e);
+  }
 }
 
 // =============================
@@ -333,7 +349,24 @@ form.addEventListener("submit", (e) => {
 
   saveHistory(history);
   renderHistory();
-  logToSheets(history[0]);
+  const payload = {
+  secret: "flight-carbon-emission-tracker",
+  employee: employeeNameEl.value.trim(),
+  submittedSgt: nowSgt(),
+  flightDate: formatDdMmYyyy(flightDateEl.value),
+  fromToName: `${from} – ${to}`,       // or swap to city names if you prefer
+  fromToIata: `${from} – ${to}`,
+  tripTypeLabel: `${prettyTrip(tripTypeEl.value)} (x${tripMultiplier})`,
+  cabinClassLabel: `${prettyCabin(cabinClassEl.value)} (x${cabinMultiplier.toFixed(1)})`,
+  passengers: Number(passengersEl.value),
+  greatCircleKm: Number(great.toFixed(2)),
+  upliftedDistanceKm: Number(uplifted.toFixed(2)),
+  haulBaseFactor: `${haul} (${baseFactor.toFixed(2)})`,
+  totalEmissionsKg: Number(total.toFixed(3)),
+};
+
+logToSheets(payload);
+
 });
 
 // =============================
