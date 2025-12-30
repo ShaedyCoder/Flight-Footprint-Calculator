@@ -1,12 +1,12 @@
 // =============================
 // Flight Footprint Calculator
 // =============================
-console.log("APP.JS VERSION:", "2025-12-30 22:30");
+console.log("APP.JS VERSION:", "2025-12-30 23:45");
 
 const AIRPORTS_CSV = "airports_iata_latlon.csv";
 const STORAGE_KEY = "flight_history_v1";
 
-// ---- Google Sheets Web App ----
+// ---- Google Sheets Web App (Apps Script /exec) ----
 const SHEETS_WEBAPP_URL =
   "https://script.google.com/macros/s/AKfycby8HHBCTBhhi32ZudeUJOFTm1xRWRELVciEyGuqYIg1h14cwd4A-hgUBdEbpHLukvTu/exec";
 
@@ -40,13 +40,17 @@ const emptyState = document.getElementById("emptyState");
 // State
 // =============================
 let airportsReady = false;
-let airportIndex = new Map();   // IATA -> {lat, lon, name, city, country}
-let airportSearch = [];        // fast search array
+/** Map<IATA, {lat:number, lon:number, name?:string, city?:string, country?:string}> */
+let airportIndex = new Map();
+/** Fast search array: [{ iata, name, city, country, hay }] */
+let airportSearch = [];
 
 // =============================
 // Init defaults
 // =============================
 flightDateEl.valueAsDate = new Date();
+
+// Disable From/To until loaded
 fromEl.disabled = true;
 toEl.disabled = true;
 fromEl.placeholder = "Loading airports…";
@@ -55,15 +59,18 @@ toEl.placeholder = "Loading airports…";
 // =============================
 // Helpers
 // =============================
-const pad2 = (n) => String(n).padStart(2, "0");
-
-function extractIata(v) {
-  const m = String(v || "").toUpperCase().match(/[A-Z0-9]{3}/);
+function extractIata(input) {
+  const s = String(input ?? "").toUpperCase();
+  const m = s.match(/[A-Z0-9]{3}/);
   return m ? m[0] : "";
 }
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
 function nowSgt() {
-  const p = new Intl.DateTimeFormat("en-GB", {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Singapore",
     year: "numeric",
     month: "2-digit",
@@ -73,88 +80,133 @@ function nowSgt() {
     hour12: false,
   }).formatToParts(new Date());
 
-  const g = (t) => p.find((x) => x.type === t)?.value ?? "";
-  return `${g("day")}-${g("month")}-${g("year")} ${g("hour")}:${g("minute")} SGT`;
+  const get = (t) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("day")}-${get("month")}-${get("year")} ${get("hour")}:${get(
+    "minute"
+  )} SGT`;
 }
 
-function formatDdMmYyyy(iso) {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-");
+function formatDdMmYyyy(isoDateStr) {
+  if (!isoDateStr) return "";
+  const [y, m, d] = isoDateStr.split("-");
+  if (!y || !m || !d) return isoDateStr;
   return `${pad2(d)}-${pad2(m)}-${y}`;
 }
 
-const toRad = (d) => (d * Math.PI) / 180;
-function haversineKm(a, b) {
-  const R = 6371;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) *
-      Math.cos(toRad(b.lat)) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+function toRad(deg) {
+  return (deg * Math.PI) / 180;
 }
 
-const cabinMult = (c) =>
-  ({ premium: 1.2, business: 1.5, first: 2.0 }[c] || 1.0);
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
-const tripMult = (t) => (t === "round-trip" ? 2 : 1);
+function cabinMult(c) {
+  if (c === "premium") return 1.2;
+  if (c === "business") return 1.5;
+  if (c === "first") return 2.0;
+  return 1.0;
+}
 
-const prettyCabin = (c) =>
-  ({
-    premium: "Premium Economy",
-    business: "Business Class",
-    first: "First Class",
-  }[c] || "Economy");
+function tripMult(t) {
+  return t === "round-trip" ? 2 : 1;
+}
 
-const prettyTrip = (t) => (t === "round-trip" ? "Round Trip" : "One Way");
+function prettyCabin(v) {
+  if (v === "premium") return "Premium Economy";
+  if (v === "business") return "Business Class";
+  if (v === "first") return "First Class";
+  return "Economy";
+}
 
-const escapeHtml = (s) =>
-  String(s || "")
+function prettyTrip(v) {
+  return v === "round-trip" ? "Round Trip" : "One Way";
+}
+
+function nowForFilename() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = pad2(d.getMonth() + 1);
+  const dd = pad2(d.getDate());
+  const hh = pad2(d.getHours());
+  const min = pad2(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}_${hh}${min}`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function placeLabelFromAirport(code) {
+  const a = airportIndex.get(code);
+  if (!a) return code;
+  const city = (a.city || "").trim();
+  const country = (a.country || "").trim();
+  const name = (a.name || "").trim();
+  return city || country || name || code;
+}
+
+function routeName(codeA, codeB) {
+  return `${placeLabelFromAirport(codeA)} – ${placeLabelFromAirport(codeB)}`;
+}
+
+function routeIata(codeA, codeB) {
+  return `${codeA} – ${codeB}`;
+}
 
 // =============================
-// Local storage
+// localStorage
 // =============================
-const loadHistory = () =>
-  JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? [];
+  } catch {
+    return [];
+  }
+}
 
-const saveHistory = (v) =>
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
+function saveHistory(items) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
 
-// =============================
-// Render history
-// =============================
 function renderHistory() {
   const items = loadHistory();
   historyTbody.innerHTML = "";
   emptyState.style.display = items.length ? "none" : "block";
 
-  items.forEach((i) => {
+  for (const it of items) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${escapeHtml(i.employeeName)}</td>
-      <td>${escapeHtml(i.submittedSgt)}</td>
-      <td>${escapeHtml(i.from)} → ${escapeHtml(i.to)}</td>
-      <td>${prettyCabin(i.cabinClass)} · ${prettyTrip(i.tripType)} · ${i.passengers} pax</td>
-      <td class="right">${i.emissionsKg.toFixed(1)}</td>
+      <td>${escapeHtml(it.employeeName)}</td>
+      <td>${escapeHtml(it.submittedSgt)}</td>
+      <td>${escapeHtml(it.from)} → ${escapeHtml(it.to)}</td>
+      <td>${escapeHtml(prettyCabin(it.cabinClass))} · ${escapeHtml(
+      prettyTrip(it.tripType)
+    )} · ${escapeHtml(it.passengers)} pax</td>
+      <td class="right">${Number(it.emissionsKg).toFixed(1)}</td>
     `;
     historyTbody.appendChild(tr);
-  });
+  }
 }
 
 // =============================
-// CSV export
+// CSV Export
 // =============================
-function exportCsv() {
-  const items = loadHistory();
-  if (!items.length) return alert("No entries to export.");
-
+function toCsv(items) {
   const headers = [
     "Employee",
     "Submitted (SGT)",
@@ -170,216 +222,500 @@ function exportCsv() {
     "Total Emissions (kg CO₂e)",
   ];
 
-  const rows = items.map((i) => [
-    i.employeeName,
-    i.submittedSgt,
-    formatDdMmYyyy(i.flightDateISO),
-    `${i.from} – ${i.to}`,
-    `${i.from} – ${i.to}`,
-    `${prettyTrip(i.tripType)} (×${i.tripMultiplier})`,
-    `${prettyCabin(i.cabinClass)} (×${i.cabinMultiplier})`,
-    i.passengers,
-    i.greatCircleKm,
-    i.upliftedOneWayKm,
-    `${i.haul} (${i.baseFactor})`,
-    i.emissionsKg,
-  ]);
+  const lines = [headers.join(",")];
 
-  const csv =
-    "\uFEFF" +
-    [headers, ...rows]
-      .map((r) =>
-        r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")
-      )
-      .join("\n");
+  for (const i of items) {
+    const fromCode = i.from;
+    const toCode = i.to;
+    const flightDate = formatDdMmYyyy(i.flightDateISO);
+
+    const fromToName = routeName(fromCode, toCode);
+    const fromToIata = routeIata(fromCode, toCode);
+
+    const tripLabel = `${prettyTrip(i.tripType)} (×${i.tripMultiplier})`;
+    const cabinLabel = `${prettyCabin(i.cabinClass)} (×${Number(
+      i.cabinMultiplier
+    ).toFixed(1)})`;
+
+    const haulFactor = `${i.haul} (${Number(i.baseFactor).toFixed(2)})`;
+
+    const row = [
+      i.employeeName,
+      i.submittedSgt,
+      flightDate,
+      fromToName,
+      fromToIata,
+      tripLabel,
+      cabinLabel,
+      i.passengers,
+      Number(i.greatCircleKm).toFixed(2),
+      Number(i.upliftedOneWayKm).toFixed(2),
+      haulFactor,
+      Number(i.emissionsKg).toFixed(3),
+    ]
+      .map((v) => {
+        const s = String(v ?? "");
+        return s.includes(",") || s.includes('"') || s.includes("\n")
+          ? `"${s.replaceAll('"', '""')}"`
+          : s;
+      })
+      .join(",");
+
+    lines.push(row);
+  }
+
+  return lines.join("\n");
+}
+
+function downloadCsv(filename, text) {
+  const BOM = "\uFEFF"; // Excel UTF-8 BOM
+  const blob = new Blob([BOM + text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  a.download = `flight-footprint-${Date.now()}.csv`;
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
   a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
 }
 
 // =============================
-// Airport loading
+// CSV Parser + Load Airports
 // =============================
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inQuotes) {
+      if (ch === '"') {
+        const next = text[i + 1];
+        if (next === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ",") {
+        row.push(field);
+        field = "";
+      } else if (ch === "\n") {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+      } else if (ch !== "\r") {
+        field += ch;
+      }
+    }
+  }
+
+  if (field.length || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
 async function loadAirports() {
   dbStatus.textContent = "Loading airport database…";
+
   const res = await fetch(`${AIRPORTS_CSV}?v=${Date.now()}`);
-  if (!res.ok) throw new Error("Airport CSV not found.");
+  if (!res.ok) {
+    throw new Error(
+      `Cannot load ${AIRPORTS_CSV}. Ensure it's beside index.html on GitHub Pages.`
+    );
+  }
 
   const text = await res.text();
-  const lines = text.split("\n").slice(1);
+  const rows = parseCsv(text);
 
-  lines.forEach((l) => {
-    const [iata, lat, lon, name, city, country] = l.split(",");
-    if (!iata || !lat || !lon) return;
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const idx = (name) => header.indexOf(name);
 
-    airportIndex.set(iata, {
-      lat: +lat,
-      lon: +lon,
+  const iIata = idx("iata");
+  const iLat = idx("lat");
+  const iLon = idx("lon");
+  const iName = idx("name");
+  const iCity = idx("city");
+  const iCountry = idx("country");
+
+  if (iIata === -1 || iLat === -1 || iLon === -1) {
+    throw new Error(
+      "CSV must include columns: iata, lat, lon (optional: name, city, country)."
+    );
+  }
+
+  const map = new Map();
+  const search = [];
+
+  for (let r = 1; r < rows.length; r++) {
+    const cols = rows[r];
+
+    const code = String(cols[iIata] ?? "").trim().toUpperCase();
+    const lat = Number(cols[iLat]);
+    const lon = Number(cols[iLon]);
+
+    if (!code || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if (map.has(code)) continue;
+
+    const name = iName >= 0 ? String(cols[iName] ?? "").trim() : "";
+    const city = iCity >= 0 ? String(cols[iCity] ?? "").trim() : "";
+    const country = iCountry >= 0 ? String(cols[iCountry] ?? "").trim() : "";
+
+    map.set(code, { lat, lon, name, city, country });
+
+    search.push({
+      iata: code,
       name,
       city,
       country,
+      hay: `${code} ${name} ${city} ${country}`.toUpperCase(),
     });
+  }
 
-    airportSearch.push({
-      iata,
-      hay: `${iata} ${name} ${city} ${country}`.toUpperCase(),
-    });
-  });
+  search.sort((a, b) => a.iata.localeCompare(b.iata));
 
+  airportIndex = map;
+  airportSearch = search;
   airportsReady = true;
+
   fromEl.disabled = false;
   toEl.disabled = false;
-  fromEl.placeholder = "Origin (city or IATA)";
-  toEl.placeholder = "Destination (city or IATA)";
-  dbStatus.textContent = `Loaded ${airportIndex.size} airports`;
+  fromEl.placeholder = "Origin (city/code)";
+  toEl.placeholder = "Destination (city/code)";
+
+  dbStatus.textContent = `Airport database loaded: ${airportIndex.size.toLocaleString()} airports.`;
 }
 
 // =============================
-// Suggestions
+// Suggestions (FAST)
 // =============================
-function wireSuggest(input, box) {
-  input.addEventListener("input", () => {
-    const q = input.value.toUpperCase().trim();
-    if (!q) return (box.innerHTML = "");
+function buildSuggestions(query) {
+  const q = query.trim().toUpperCase();
+  if (!q) return [];
 
-    box.innerHTML = airportSearch
-      .filter((a) => a.hay.includes(q))
-      .slice(0, 10)
-      .map(
-        (a) => `<div class="item" data-iata="${a.iata}">${a.iata}</div>`
-      )
-      .join("");
+  const out = [];
+  for (let i = 0; i < airportSearch.length; i++) {
+    const a = airportSearch[i];
+    if (a.iata.startsWith(q) || a.hay.includes(q)) {
+      out.push(a);
+      if (out.length >= 12) break;
+    }
+  }
 
-    box.querySelectorAll(".item").forEach((el) => {
-      el.onclick = () => {
-        input.value = el.dataset.iata;
-        box.innerHTML = "";
-      };
-    });
+  out.sort((a, b) => {
+    const ap = a.iata.startsWith(q) ? 0 : 1;
+    const bp = b.iata.startsWith(q) ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    return a.iata.localeCompare(b.iata);
   });
 
-  input.addEventListener("blur", () =>
-    setTimeout(() => (box.innerHTML = ""), 150)
-  );
+  return out.slice(0, 12);
+}
+
+function hideSuggest(box) {
+  box.style.display = "none";
+  box.innerHTML = "";
+}
+
+function showSuggest(box, items, onPick) {
+  if (!items.length) {
+    hideSuggest(box);
+    return;
+  }
+
+  box.innerHTML = items
+    .map((it, idx) => {
+      const sub = `${it.city || ""}${it.city && it.country ? ", " : ""}${
+        it.country || ""
+      }`.trim();
+
+      const label = `${it.iata} - ${it.city || it.name || it.iata}`;
+
+      return `
+        <div class="item" role="option" data-label="${escapeHtml(
+          label
+        )}" data-idx="${idx}">
+          <div class="top">
+            <span class="code">${escapeHtml(it.iata)}</span>
+            <span class="name">${escapeHtml(it.name || "Unknown Airport")}</span>
+          </div>
+          <div class="sub">${escapeHtml(sub || "—")}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  box.style.display = "block";
+
+  box.querySelectorAll(".item").forEach((el) => {
+    el.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const label = el.getAttribute("data-label") || "";
+      onPick(label);
+      hideSuggest(box);
+    });
+  });
+}
+
+function wireSuggest(inputEl, box) {
+  let activeIndex = -1;
+
+  inputEl.addEventListener("input", () => {
+    if (!airportsReady) return;
+    activeIndex = -1;
+    const items = buildSuggestions(inputEl.value);
+    showSuggest(box, items, (label) => (inputEl.value = label));
+  });
+
+  inputEl.addEventListener("focus", () => {
+    if (!airportsReady) return;
+    activeIndex = -1;
+    const items = buildSuggestions(inputEl.value);
+    showSuggest(box, items, (label) => (inputEl.value = label));
+  });
+
+  inputEl.addEventListener("blur", () => {
+    setTimeout(() => hideSuggest(box), 120);
+  });
+
+  inputEl.addEventListener("keydown", (e) => {
+    const items = Array.from(box.querySelectorAll(".item"));
+    if (box.style.display !== "block" || !items.length) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, items.length - 1);
+      items.forEach((i) => i.classList.remove("active"));
+      items[activeIndex]?.classList.add("active");
+      items[activeIndex]?.scrollIntoView({ block: "nearest" });
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      items.forEach((i) => i.classList.remove("active"));
+      items[activeIndex]?.classList.add("active");
+      items[activeIndex]?.scrollIntoView({ block: "nearest" });
+    }
+
+    if (e.key === "Enter") {
+      const chosen = items[activeIndex];
+      if (chosen) {
+        e.preventDefault();
+        const label = chosen.getAttribute("data-label") || "";
+        inputEl.value = label;
+        hideSuggest(box);
+      }
+    }
+
+    if (e.key === "Escape") hideSuggest(box);
+  });
 }
 
 // =============================
-// Google Sheets logging
+// Google Sheets logging (client)
 // =============================
-function logToSheets(payload) {
+async function logToGoogleSheets(payload) {
   try {
     const body = JSON.stringify(payload);
 
-    // best-effort (doesn't block page)
     const ok = navigator.sendBeacon(
       SHEETS_WEBAPP_URL,
       new Blob([body], { type: "text/plain;charset=UTF-8" })
     );
 
-    // fallback
     if (!ok) {
-      fetch(SHEETS_WEBAPP_URL, {
+      await fetch(SHEETS_WEBAPP_URL, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "text/plain;charset=UTF-8" },
         body,
         keepalive: true,
-      }).catch(() => {});
+      });
     }
-  } catch (e) {
-    console.warn("Sheets logging failed:", e);
+  } catch (err) {
+    console.warn("Google Sheets logging failed:", err);
   }
 }
 
 // =============================
-// Submit
+// Calculation
+// =============================
+function calculate({ fromCode, toCode, passengers, tripType, cabinClass }) {
+  const A = airportIndex.get(fromCode);
+  const B = airportIndex.get(toCode);
+
+  if (!A || !B) return { error: "Airport code not found in database." };
+
+  const greatCircleKm = haversineKm(A.lat, A.lon, B.lat, B.lon);
+  const upliftedOneWayKm = greatCircleKm * 1.08;
+
+  const haul = upliftedOneWayKm < 3700 ? "Short-haul" : "Long-haul";
+  const baseFactor = haul === "Short-haul" ? 0.15 : 0.11;
+
+  const cabinMultiplier = cabinMult(cabinClass);
+  const adjustedFactor = baseFactor * cabinMultiplier;
+
+  const tripMultiplier = tripMult(tripType);
+
+  const totalEmissionsKg =
+    upliftedOneWayKm * adjustedFactor * passengers * tripMultiplier;
+
+  return {
+    greatCircleKm,
+    upliftedOneWayKm,
+    haul,
+    baseFactor,
+    cabinMultiplier,
+    adjustedFactor,
+    tripMultiplier,
+    totalEmissionsKg,
+  };
+}
+
+// =============================
+// Events
 // =============================
 form.addEventListener("submit", (e) => {
   e.preventDefault();
 
-  const from = extractIata(fromEl.value);
-  const to = extractIata(toEl.value);
+  if (!airportsReady) {
+    alert("Airport database still loading. Try again in a moment.");
+    return;
+  }
 
-  if (!airportIndex.has(from) || !airportIndex.has(to))
-    return alert("Invalid airport code.");
+  const employeeName = employeeNameEl.value.trim();
+  const fromCode = extractIata(fromEl.value);
+  const toCode = extractIata(toEl.value);
+  const flightDateISO = flightDateEl.value;
 
-  const A = airportIndex.get(from);
-  const B = airportIndex.get(to);
+  const passengers = Number(passengersEl.value);
+  const tripType = tripTypeEl.value;
+  const cabinClass = cabinClassEl.value;
 
-  const great = haversineKm(A, B);
-  const uplifted = great * 1.08;
-  const haul = uplifted < 3700 ? "Short-haul" : "Long-haul";
-  const baseFactor = haul === "Short-haul" ? 0.15 : 0.11;
+  if (
+    !employeeName ||
+    !fromCode ||
+    !toCode ||
+    !flightDateISO ||
+    !Number.isFinite(passengers) ||
+    passengers < 1
+  ) {
+    alert("Fill in all fields. Use IATA codes like SIN, NRT, KUL.");
+    return;
+  }
 
-  const cabinMultiplier = cabinMult(cabinClassEl.value);
-  const tripMultiplier = tripMult(tripTypeEl.value);
+  if (fromCode === toCode) {
+    alert("Origin and destination cannot be the same.");
+    return;
+  }
 
-  const total =
-    uplifted *
-    baseFactor *
-    cabinMultiplier *
-    tripMultiplier *
-    passengersEl.value;
+  const r = calculate({ fromCode, toCode, passengers, tripType, cabinClass });
+  if (r.error) {
+    alert(r.error);
+    return;
+  }
 
-  resultMain.textContent = `${total.toFixed(1)} kg CO₂e`;
-  resultSub.textContent = `${uplifted.toFixed(
+  // Result display (story style)
+  resultMain.textContent = `${r.totalEmissionsKg.toFixed(1)} kg CO₂e`;
+  resultSub.textContent = `Uplifted distance ${r.upliftedOneWayKm.toFixed(
     0
-  )} km · ${haul} · ${prettyCabin(cabinClassEl.value)}`;
+  )} km · ${r.haul} factor ${r.baseFactor.toFixed(
+    2
+  )} × Cabin (×${r.cabinMultiplier.toFixed(1)}) × ${passengers} passenger${
+    passengers > 1 ? "s" : ""
+  } × ${prettyTrip(tripType)} (×${r.tripMultiplier})`;
 
-  const history = loadHistory();
-  history.unshift({
-    employeeName: employeeNameEl.value,
-    submittedSgt: nowSgt(),
-    flightDateISO: flightDateEl.value,
-    from,
-    to,
-    passengers: +passengersEl.value,
-    tripType: tripTypeEl.value,
-    cabinClass: cabinClassEl.value,
-    greatCircleKm: +great.toFixed(2),
-    upliftedOneWayKm: +uplifted.toFixed(2),
-    haul,
-    baseFactor,
-    cabinMultiplier,
-    tripMultiplier,
-    emissionsKg: +total.toFixed(3),
+  // Store local history
+  const submittedSgt = nowSgt();
+  const items = loadHistory();
+
+  items.unshift({
+    employeeName,
+    submittedSgt,
+    flightDateISO,
+    from: fromCode,
+    to: toCode,
+    tripType,
+    cabinClass,
+    passengers,
+    greatCircleKm: Number(r.greatCircleKm.toFixed(2)),
+    upliftedOneWayKm: Number(r.upliftedOneWayKm.toFixed(2)),
+    haul: r.haul,
+    baseFactor: Number(r.baseFactor.toFixed(2)),
+    cabinMultiplier: Number(r.cabinMultiplier.toFixed(1)),
+    adjustedFactor: Number(r.adjustedFactor.toFixed(3)),
+    tripMultiplier: r.tripMultiplier,
+    emissionsKg: Number(r.totalEmissionsKg.toFixed(3)),
   });
 
-  saveHistory(history);
+  saveHistory(items);
   renderHistory();
+
+  // Log to Google Sheets (payload fields EXACTLY as your Apps Script expects)
   const payload = {
-  secret: "flight-carbon-emission-tracker",
-  employee: employeeNameEl.value.trim(),
-  submittedSgt: nowSgt(),
-  flightDate: formatDdMmYyyy(flightDateEl.value),
-  fromToName: `${from} – ${to}`,       // or swap to city names if you prefer
-  fromToIata: `${from} – ${to}`,
-  tripTypeLabel: `${prettyTrip(tripTypeEl.value)} (x${tripMultiplier})`,
-  cabinClassLabel: `${prettyCabin(cabinClassEl.value)} (x${cabinMultiplier.toFixed(1)})`,
-  passengers: Number(passengersEl.value),
-  greatCircleKm: Number(great.toFixed(2)),
-  upliftedDistanceKm: Number(uplifted.toFixed(2)),
-  haulBaseFactor: `${haul} (${baseFactor.toFixed(2)})`,
-  totalEmissionsKg: Number(total.toFixed(3)),
-};
+    secret: "flight-carbon-emission-tracker",
+    employee: employeeName,
+    submittedSgt,
+    flightDate: formatDdMmYyyy(flightDateISO),
+    fromToName: routeName(fromCode, toCode),
+    fromToIata: routeIata(fromCode, toCode),
+    tripTypeLabel: `${prettyTrip(tripType)} (x${r.tripMultiplier})`,
+    cabinClassLabel: `${prettyCabin(cabinClass)} (x${Number(
+      r.cabinMultiplier
+    ).toFixed(1)})`,
+    passengers,
+    greatCircleKm: Number(r.greatCircleKm.toFixed(2)),
+    upliftedDistanceKm: Number(r.upliftedOneWayKm.toFixed(2)),
+    haulBaseFactor: `${r.haul} (${Number(r.baseFactor).toFixed(2)})`,
+    totalEmissionsKg: Number(r.totalEmissionsKg.toFixed(3)),
+  };
 
-logToSheets(payload);
+  logToGoogleSheets(payload);
 
+  hideSuggest(fromSuggest);
+  hideSuggest(toSuggest);
 });
 
-// =============================
-// Buttons
-// =============================
-resetBtn.onclick = () => form.reset();
-clearHistoryBtn.onclick = () => {
-  if (confirm("Clear all history?")) {
-    saveHistory([]);
-    renderHistory();
+resetBtn.addEventListener("click", () => {
+  form.reset();
+  flightDateEl.valueAsDate = new Date();
+  resultMain.textContent = "Ready to calculate";
+  resultSub.textContent = "Enter IATA codes to estimate emissions.";
+  hideSuggest(fromSuggest);
+  hideSuggest(toSuggest);
+});
+
+clearHistoryBtn.addEventListener("click", () => {
+  if (!confirm("Clear all history entries?")) return;
+  saveHistory([]);
+  renderHistory();
+});
+
+exportCsvBtn.addEventListener("click", () => {
+  const items = loadHistory();
+  if (!items.length) {
+    alert("No entries to export yet.");
+    return;
   }
-};
-exportCsvBtn.onclick = exportCsv;
+  const filename = `flight-footprint-${nowForFilename()}.csv`;
+  downloadCsv(filename, toCsv(items));
+});
 
 // =============================
 // Init
@@ -387,7 +723,9 @@ exportCsvBtn.onclick = exportCsv;
 renderHistory();
 wireSuggest(fromEl, fromSuggest);
 wireSuggest(toEl, toSuggest);
-loadAirports().catch((e) => {
-  console.error(e);
-  alert(e.message);
+
+loadAirports().catch((err) => {
+  console.error(err);
+  dbStatus.textContent = "Airport database failed to load.";
+  alert(err.message);
 });
