@@ -285,53 +285,87 @@ html, body { width:100%; overflow-x:hidden; }
    ============================= */
 @media (max-width: 820px) {
 
-  .wrap{ padding:7px 7px; }
+  /* Use wrap padding as the single source of side margins */
+  .wrap{
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
 
-  /* stack layout */
+  /* Stack layout */
   .grid{
-    grid-template-columns:1fr !important;
-    width:100%;
-    margin-left:auto;
-    margin-right:auto;
-    justify-items:stretch;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+
+    /* stop auto-centre drift on some mobile browsers */
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-top: 16px !important;
+    margin-bottom: 18px !important;
+
+    justify-items: stretch;
   }
 
-  /* cards full width */
+  /* Cards full width, no auto margins */
   .card{
-    width:100%;
-    max-width:100%;
-    margin-left:auto;
-    margin-right:auto;
-    padding:14px;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 14px;
   }
 
-  /* remove desktop cap */
-  .card:first-child{ max-width:none !important; }
+  /* Remove desktop cap */
+  .card:first-child{
+    max-width: none !important;
+  }
 
-  /* order using class, not fragile nth rules */
-  .grid > section.card{ order:1; }         /* Flight Details */
-  .grid > section.card.full{ order:2; }    /* Result */
-  .grid > section.card.history{ order:3; } /* History (add class in HTML if you want) */
+  /* Order: Flight Details (1), Result (2), History (3) */
+  .grid > section.card{ order: 1; }
+  .grid > section.card.full{ order: 2; }
+  .grid > section.card:not(.full):nth-of-type(2){ order: 3; }
 
-  /* If you don't add a class, History is the 2nd card */
-  .grid > section.card:not(.full):nth-of-type(2){ order:3; }
+  /* Stack form fields */
+  .row{
+    grid-template-columns: 1fr !important;
+  }
 
-  /* stack form fields */
-  .row{ grid-template-columns:1fr !important; }
+  /* Buttons */
+  .actions{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .actions .btn{
+    width: 100%;
+  }
 
-  /* buttons */
-  .actions{ flex-direction:column; align-items:stretch; }
-  .actions .btn{ width:100%; }
+  /* History header buttons */
+  .head{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .headBtns{
+    width: 100%;
+  }
+  .headBtns .btn{
+    width: 100%;
+  }
 
-  .head{ flex-direction:column; align-items:stretch; }
-  .headBtns{ width:100%; }
-  .headBtns .btn{ width:100%; }
+  /* Table should not force desktop width */
+  .table{
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .tableWrap{
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 
-  /* table should not force desktop width */
-  .table{ min-width:0 !important; width:100%; }
-  .tableWrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-
-  .topbar{ padding:18px 0; }
-  .title{ font-size:22px; }
+  /* Header spacing + title scaling */
+  .topbar{
+    padding: 18px 0;
+  }
+  .title{
+    font-size: 22px;
+  }
 }
-
